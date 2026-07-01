@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Libro Mayor · Rentabilidad de Tienda</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1F2A24">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Libro Mayor">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FAF7F0;
+    --card:#FFFFFF;
+    --ink:#1F2A24;
+    --ink-soft:#5B6862;
+    --green:#2F6B4F;
+    --green-bg:#E6EFE9;
+    --red:#B5482A;
+    --red-bg:#F5E7E1;
+    --gold:#D9A441;
+    --line:#DDD6C7;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Work Sans',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  header{
+    padding:20px 18px 14px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:12px;
+  }
+  header h1{
+    font-size:1.05rem;
+    margin:0;
+    letter-spacing:.02em;
+  }
+  header .sub{
+    font-size:.72rem;
+    color:var(--ink-soft);
+    margin-top:3px;
+  }
+  #storeBtn{
+    background:none;
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:5px 12px;
+    font-size:.68rem;
+    color:var(--ink-soft);
+    cursor:pointer;
+  }
+  #installBtn{
+    background:var(--gold);
+    border:1px solid var(--gold);
+    border-radius:20px;
+    padding:5px 12px;
+    font-size:.68rem;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  main{
+    max-width:640px;
+    margin:0 auto;
+    padding:18px 16px 60px;
+  }
+
+  /* ---- Balance / Stamp ---- */
+  .balance-block{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    padding:22px 6px 26px;
+    border-bottom:1px dashed var(--line);
+    margin-bottom:22px;
+    position:relative;
+  }
+  .balance-label{
+    font-size:.7rem;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--ink-soft);
+  }
+  .balance-value{
+    font-size:2.3rem;
+    font-weight:600;
+    line-height:1.05;
+    margin-top:4px;
+  }
+  .balance-value.neg{color:var(--red);}
+  .balance-value.pos{color:var(--green);}
+  select#periodoSelect{
+    margin-top:6px;
+    font-family:'Work Sans',sans-serif;
+    font-size:.72rem;
+    border:none;
+    background:none;
+    color:var(--ink-soft);
+    text-decoration:underline;
+    cursor:pointer;
+  }
+  .stamp{
+    flex-shrink:0;
+    width:96px;
+    height:96px;
+    border-radius:50%;
+    border:3px solid var(--green);
+    color:var(--green);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:700;
+    font-size:.72rem;
+    letter-spacing:.05em;
+    transform:rotate(-8deg);
+    opacity:.9;
+  }
+  .stamp.neg{border-color:var(--red);color:var(--red);}
+
+  /* ---- Summary strip ---- */
+  .strip{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+    margin-bottom:24px;
+  }
+  .tile{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 12px;
+  }
+  .tile .t-label{font-size:.65rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;}
+  .tile .t-value{font-size:1.05rem;font-weight:600;margin-top:3px;}
+  .tile .t-value.neg{color:var(--red);}
+  .tile .t-value.pos{color:var(--green);}
+
+  /* ---- Entry form ---- */
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px;
+    margin-bottom:22px;
+  }
+  .toggle{
+    display:flex;
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+    margin-bottom:12px;
+  }
+  .toggle button{
+    flex:1;
+    padding:10px;
+    border:none;
+    background:var(--card);
+    font-family:'Work Sans',sans-serif;
+    font-weight:600;
+    font-size:.85rem;
+    color:var(--ink-soft);
+    cursor:pointer;
+  }
+  .toggle button.active-ingreso{background:var(--green-bg);color:var(--green);}
+  .toggle button.active-gasto{background:var(--red-bg);color:var(--red);}
+  .row{display:flex;gap:10px;margin-bottom:10px;}
+  .row > div{flex:1;}
+  label{
+    display:block;
+    font-size:.68rem;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    margin-bottom:4px;
+  }
+  input, select, textarea{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    font-family:'Work Sans',sans-serif;
+    font-size:.9rem;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  input.mono-input{font-family:'IBM Plex Mono',monospace;}
+  button#saveBtn{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:8px;
+    background:var(--ink);
+    color:var(--paper);
+    font-weight:600;
+    font-size:.9rem;
+    cursor:pointer;
+    margin-top:4px;
+  }
+  button#saveBtn:active{opacity:.85;}
+
+  /* ---- Chart ---- */
+  .chart-wrap{margin-bottom:24px;}
+  .chart-wrap h2, .history h2{
+    font-size:.72rem;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--ink-soft);
+    margin:0 0 10px 2px;
+  }
+  canvas{width:100%;height:120px;display:block;}
+
+  /* ---- History ---- */
+  .day-group{margin-bottom:16px;}
+  .day-head{
+    font-size:.68rem;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    padding:0 2px 6px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:6px;
+  }
+  .mov-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:8px 4px;
+    border-bottom:1px solid #EFEAE0;
+    gap:10px;
+  }
+  .mov-row:last-child{border-bottom:none;}
+  .mov-cat{font-size:.85rem;}
+  .mov-nota{font-size:.72rem;color:var(--ink-soft);margin-top:1px;}
+  .mov-amt{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:.9rem;white-space:nowrap;}
+  .mov-amt.pos{color:var(--green);}
+  .mov-amt.neg{color:var(--red);}
+  .mov-del{
+    background:none;border:none;color:var(--ink-soft);
+    font-size:.9rem;cursor:pointer;padding:2px 6px;
+  }
+  .empty{
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:.82rem;
+    padding:30px 10px;
+  }
+
+  /* ---- Modal (store id) ---- */
+  .modal-bg{
+    position:fixed;inset:0;background:rgba(31,42,36,.55);
+    display:flex;align-items:center;justify-content:center;
+    padding:20px;z-index:50;
+  }
+  .modal{
+    background:var(--card);border-radius:14px;padding:22px;
+    max-width:360px;width:100%;
+  }
+  .modal h3{margin:0 0 8px;font-size:1rem;}
+  .modal p{font-size:.82rem;color:var(--ink-soft);margin:0 0 14px;line-height:1.4;}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>📒 Libro Mayor</h1>
+    <div class="sub" id="storeLabel">Tienda sin nombre</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+    <button id="storeBtn">cambiar tienda</button>
+    <button id="installBtn" class="hidden">instalar app</button>
+  </div>
+</header>
+
+<main>
+
+  <div class="balance-block">
+    <div>
+      <div class="balance-label">Balance</div>
+      <div class="balance-value pos" id="balanceValue">$0</div>
+      <select id="periodoSelect">
+        <option value="mes">este mes</option>
+        <option value="semana">esta semana</option>
+        <option value="hoy">hoy</option>
+        <option value="total">desde el inicio</option>
+      </select>
+    </div>
+    <div class="stamp pos" id="stamp">RENTABLE</div>
+  </div>
+
+  <div class="strip">
+    <div class="tile">
+      <div class="t-label">Hoy</div>
+      <div class="t-value mono" id="sumHoy">$0</div>
+    </div>
+    <div class="tile">
+      <div class="t-label">Semana</div>
+      <div class="t-value mono" id="sumSemana">$0</div>
+    </div>
+    <div class="tile">
+      <div class="t-label">Mes</div>
+      <div class="t-value mono" id="sumMes">$0</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="toggle">
+      <button id="btnIngreso" class="active-ingreso">+ Ingreso</button>
+      <button id="btnGasto">− Gasto</button>
+    </div>
+    <div class="row">
+      <div>
+        <label>Monto</label>
+        <input type="number" id="montoInput" class="mono-input" placeholder="0" inputmode="decimal">
+      </div>
+      <div>
+        <label>Fecha</label>
+        <input type="date" id="fechaInput">
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Categoría</label>
+        <select id="categoriaInput"></select>
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Nota (opcional)</label>
+        <input type="text" id="notaInput" placeholder="ej. compra de bolsas">
+      </div>
+    </div>
+    <button id="saveBtn">Guardar movimiento</button>
+  </div>
+
+  <div class="chart-wrap">
+    <h2>Últimos 14 días</h2>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="history">
+    <h2>Movimientos</h2>
+    <div id="historyList"><div class="empty">Cargando...</div></div>
+  </div>
+
+</main>
+
+<div id="storeModalBg" class="modal-bg hidden">
+  <div class="modal">
+    <h3>Identifica tu tienda</h3>
+    <p>Escribe un código único para tu tienda. Usa el mismo código en todos los dispositivos que quieras sincronizar (celular, computadora, etc).</p>
+    <input type="text" id="storeIdInput" placeholder="ej. panaderia-regis" style="margin-bottom:10px;">
+    <button id="storeSaveBtn" style="width:100%;padding:11px;border:none;border-radius:8px;background:var(--ink);color:var(--paper);font-weight:600;cursor:pointer;">Entrar</button>
+  </div>
+</div>
+
+<!-- Firebase (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script>
+/* ======================================================
+   CONFIGURA AQUÍ TU FIREBASE (pega tu config, igual que en tus otros proyectos)
+   ====================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyC1UX5uDjpPPUH9GxoqkxbM0IHL-KpVXzA",
+  authDomain: "tienda-8aa0a.firebaseapp.com",
+  projectId: "tienda-8aa0a",
+  storageBucket: "tienda-8aa0a.firebasestorage.app",
+  messagingSenderId: "251263918866",
+  appId: "1:251263918866:web:21effacc59d5ba2464c9cb"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+/* ---------- Categorías ---------- */
+const CATS_INGRESO = ["Ventas", "Otro ingreso"];
+const CATS_GASTO = ["Inventario / mercancía", "Renta", "Servicios (luz, agua, internet)", "Personal / sueldos", "Transporte", "Otro gasto"];
+
+/* ---------- Estado ---------- */
+let tipoActual = "ingreso";
+let movimientos = [];
+let storeId = localStorage.getItem("rentabilidad_storeId") || "";
+let unsubscribe = null;
+
+const $ = id => document.getElementById(id);
+
+/* ---------- Store ID ---------- */
+function initStore(){
+  if(!storeId){
+    $("storeModalBg").classList.remove("hidden");
+  } else {
+    $("storeLabel").textContent = "Tienda: " + storeId;
+    startListening();
+  }
+}
+$("storeBtn").addEventListener("click", () => $("storeModalBg").classList.remove("hidden"));
+$("storeSaveBtn").addEventListener("click", () => {
+  const val = $("storeIdInput").value.trim().toLowerCase().replace(/\s+/g,'-');
+  if(!val) return;
+  storeId = val;
+  localStorage.setItem("rentabilidad_storeId", storeId);
+  $("storeLabel").textContent = "Tienda: " + storeId;
+  $("storeModalBg").classList.add("hidden");
+  if(unsubscribe) unsubscribe();
+  startListening();
+});
+
+/* ---------- Firestore listener ---------- */
+function startListening(){
+  $("historyList").innerHTML = '<div class="empty">Cargando...</div>';
+  unsubscribe = db.collection("tiendas").doc(storeId).collection("movimientos")
+    .orderBy("fecha","desc")
+    .onSnapshot(snap => {
+      movimientos = [];
+      snap.forEach(doc => movimientos.push({id: doc.id, ...doc.data()}));
+      renderAll();
+    }, err => {
+      console.error(err);
+      $("historyList").innerHTML = '<div class="empty">Error al conectar con Firebase. Revisa tu configuración.</div>';
+    });
+}
+
+/* ---------- Formulario ---------- */
+function fillCategorias(){
+  const sel = $("categoriaInput");
+  sel.innerHTML = "";
+  const list = tipoActual === "ingreso" ? CATS_INGRESO : CATS_GASTO;
+  list.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+}
+$("btnIngreso").addEventListener("click", () => {
+  tipoActual = "ingreso";
+  $("btnIngreso").classList.add("active-ingreso");
+  $("btnGasto").classList.remove("active-gasto");
+  fillCategorias();
+});
+$("btnGasto").addEventListener("click", () => {
+  tipoActual = "gasto";
+  $("btnGasto").classList.add("active-gasto");
+  $("btnIngreso").classList.remove("active-ingreso");
+  fillCategorias();
+});
+$("fechaInput").valueAsDate = new Date();
+fillCategorias();
+
+$("saveBtn").addEventListener("click", async () => {
+  const monto = parseFloat($("montoInput").value);
+  if(!monto || monto <= 0){ $("montoInput").focus(); return; }
+  if(!storeId){ $("storeModalBg").classList.remove("hidden"); return; }
+  const data = {
+    tipo: tipoActual,
+    categoria: $("categoriaInput").value,
+    monto: monto,
+    nota: $("notaInput").value.trim(),
+    fecha: $("fechaInput").value || new Date().toISOString().slice(0,10),
+    timestamp: Date.now()
+  };
+  $("saveBtn").disabled = true;
+  $("saveBtn").textContent = "Guardando...";
+  try{
+    await db.collection("tiendas").doc(storeId).collection("movimientos").add(data);
+    $("montoInput").value = "";
+    $("notaInput").value = "";
+  }catch(e){
+    alert("No se pudo guardar. Revisa tu conexión o configuración de Firebase.");
+    console.error(e);
+  }
+  $("saveBtn").disabled = false;
+  $("saveBtn").textContent = "Guardar movimiento";
+});
+
+async function borrarMov(id){
+  if(!confirm("¿Eliminar este movimiento?")) return;
+  await db.collection("tiendas").doc(storeId).collection("movimientos").doc(id).delete();
+}
+
+/* ---------- Cálculos ---------- */
+function fmt(n){
+  const sign = n < 0 ? "-" : "";
+  return sign + "$" + Math.abs(n).toLocaleString("es-MX", {maximumFractionDigits:0});
+}
+function netoDe(mov){ return mov.tipo === "ingreso" ? mov.monto : -mov.monto; }
+function startOfWeek(d){
+  const dt = new Date(d);
+  const day = dt.getDay();
+  const diff = (day === 0 ? -6 : 1) - day; // lunes como inicio
+  dt.setDate(dt.getDate() + diff);
+  dt.setHours(0,0,0,0);
+  return dt;
+}
+function sumaPeriodo(periodo){
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const inicioSemana = startOfWeek(hoy);
+  return movimientos.reduce((acc, m) => {
+    const f = new Date(m.fecha + "T00:00:00");
+    let incluir = false;
+    if(periodo === "hoy") incluir = f.getTime() === hoy.getTime();
+    else if(periodo === "semana") incluir = f >= inicioSemana;
+    else if(periodo === "mes") incluir = f.getFullYear() === hoy.getFullYear() && f.getMonth() === hoy.getMonth();
+    else if(periodo === "total") incluir = true;
+    return incluir ? acc + netoDe(m) : acc;
+  }, 0);
+}
+
+/* ---------- Render ---------- */
+function renderAll(){
+  renderBalance();
+  renderStrip();
+  renderChart();
+  renderHistory();
+}
+function renderBalance(){
+  const periodo = $("periodoSelect").value;
+  const total = sumaPeriodo(periodo);
+  const bv = $("balanceValue");
+  bv.textContent = fmt(total);
+  bv.className = "balance-value " + (total >= 0 ? "pos" : "neg");
+  const stamp = $("stamp");
+  stamp.className = "stamp " + (total >= 0 ? "pos" : "neg");
+  stamp.textContent = total >= 0 ? "RENTABLE" : "EN PÉRDIDA";
+}
+$("periodoSelect").addEventListener("change", renderBalance);
+
+function renderStrip(){
+  const setTile = (id, val) => {
+    const el = $(id);
+    el.textContent = fmt(val);
+    el.className = "t-value mono " + (val >= 0 ? "pos" : "neg");
+  };
+  setTile("sumHoy", sumaPeriodo("hoy"));
+  setTile("sumSemana", sumaPeriodo("semana"));
+  setTile("sumMes", sumaPeriodo("mes"));
+}
+
+function renderChart(){
+  const canvas = $("chart");
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = 120;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+
+  const days = [];
+  for(let i = 13; i >= 0; i--){
+    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-i);
+    days.push(d);
+  }
+  const netos = days.map(d => {
+    const key = d.toISOString().slice(0,10);
+    return movimientos.filter(m => m.fecha === key).reduce((a,m)=>a+netoDe(m),0);
+  });
+  const maxAbs = Math.max(1, ...netos.map(n=>Math.abs(n)));
+  const barW = w / days.length;
+  const midY = h/2;
+
+  ctx.strokeStyle = "#DDD6C7";
+  ctx.beginPath(); ctx.moveTo(0, midY); ctx.lineTo(w, midY); ctx.stroke();
+
+  netos.forEach((n, i) => {
+    const barH = (Math.abs(n)/maxAbs) * (h/2 - 8);
+    const x = i * barW + barW*0.2;
+    const bw = barW*0.6;
+    ctx.fillStyle = n >= 0 ? "#2F6B4F" : "#B5482A";
+    if(n >= 0) ctx.fillRect(x, midY - barH, bw, barH);
+    else ctx.fillRect(x, midY, bw, barH);
+  });
+}
+
+function renderHistory(){
+  const list = $("historyList");
+  if(movimientos.length === 0){
+    list.innerHTML = '<div class="empty">Aún no hay movimientos. Agrega el primero arriba ↑</div>';
+    return;
+  }
+  const groups = {};
+  movimientos.forEach(m => {
+    if(!groups[m.fecha]) groups[m.fecha] = [];
+    groups[m.fecha].push(m);
+  });
+  const fechasOrdenadas = Object.keys(groups).sort().reverse();
+  list.innerHTML = fechasOrdenadas.map(fecha => {
+    const dt = new Date(fecha + "T00:00:00");
+    const label = dt.toLocaleDateString("es-MX", {weekday:'long', day:'numeric', month:'long'});
+    const rows = groups[fecha].map(m => `
+      <div class="mov-row">
+        <div>
+          <div class="mov-cat">${m.categoria}</div>
+          ${m.nota ? `<div class="mov-nota">${escapeHtml(m.nota)}</div>` : ""}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="mov-amt ${m.tipo==='ingreso'?'pos':'neg'}">${m.tipo==='ingreso'?'+':'-'}${fmt(m.monto).replace('-','').replace('$','$')}</div>
+          <button class="mov-del" onclick="borrarMov('${m.id}')">✕</button>
+        </div>
+      </div>`).join("");
+    return `<div class="day-group"><div class="day-head">${label}</div>${rows}</div>`;
+  }).join("");
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+window.addEventListener("resize", renderChart);
+initStore();
+
+/* ---------- PWA: instalación y service worker ---------- */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(err => console.error("SW error:", err));
+  });
+}
+
+let deferredPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  $("installBtn").classList.remove("hidden");
+});
+$("installBtn").addEventListener("click", async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  $("installBtn").classList.add("hidden");
+});
+window.addEventListener("appinstalled", () => {
+  $("installBtn").classList.add("hidden");
+});
+</script>
+</body>
+</html>
