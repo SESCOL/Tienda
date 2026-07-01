@@ -1,4 +1,4 @@
-const CACHE_VERSION = "libro-mayor-v5";
+const CACHE_VERSION = "libro-mayor-v7";
 const APP_SHELL = [
   "./index.html",
   "./manifest.json",

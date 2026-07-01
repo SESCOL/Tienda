@@ -257,8 +257,14 @@
   .mov-amt.pos{color:var(--green);}
   .mov-amt.neg{color:var(--red);}
   .mov-del{
-    background:none;border:none;color:var(--ink-soft);
-    font-size:.9rem;cursor:pointer;padding:2px 6px;
+    background:none;border:1px solid var(--line);color:var(--ink-soft);
+    font-size:1rem;cursor:pointer;padding:6px 10px;border-radius:8px;
+    line-height:1;
+  }
+  .mov-edit{
+    background:none;border:1px solid var(--gold);color:var(--gold);
+    font-size:1rem;cursor:pointer;padding:6px 10px;border-radius:8px;
+    line-height:1;
   }
   .empty{
     text-align:center;
@@ -354,7 +360,6 @@
       </div>
     </div>
     <button id="saveBtn">Guardar movimiento</button>
-    <button id="cancelEditBtn" class="hidden" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink-soft);font-size:.85rem;cursor:pointer;margin-top:8px;">Cancelar edición</button>
   </div>
 
   <div class="chart-wrap">
@@ -371,6 +376,28 @@
   </div>
 
 </main>
+
+<div id="editModalBg" class="modal-bg hidden">
+  <div class="modal">
+    <h3>Editar movimiento</h3>
+    <div class="toggle" style="margin-bottom:12px;">
+      <button id="editBtnIngreso" type="button">+ Ingreso</button>
+      <button id="editBtnGasto" type="button">− Gasto</button>
+    </div>
+    <label>Monto</label>
+    <input type="number" id="editMontoInput" class="mono-input" inputmode="decimal" style="margin-bottom:10px;">
+    <label>Categoría</label>
+    <select id="editCategoriaInput" style="margin-bottom:10px;"></select>
+    <label>Fecha</label>
+    <input type="date" id="editFechaInput" style="margin-bottom:10px;">
+    <label>Nota (opcional)</label>
+    <input type="text" id="editNotaInput" style="margin-bottom:16px;">
+    <div style="display:flex;gap:10px;">
+      <button id="editCancelBtn" style="flex:1;padding:11px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink-soft);cursor:pointer;">Cancelar</button>
+      <button id="editSaveBtn" style="flex:1;padding:11px;border:none;border-radius:8px;background:var(--ink);color:var(--paper);font-weight:600;cursor:pointer;">Guardar</button>
+    </div>
+  </div>
+</div>
 
 <div id="storeModalBg" class="modal-bg hidden">
   <div class="modal">
@@ -407,7 +434,6 @@ const CATS_GASTO = ["Inventario / mercancía", "Renta", "Servicios (luz, agua, i
 /* ---------- Estado ---------- */
 let tipoActual = "ingreso";
 let movimientos = [];
-let editandoId = null;
 let storeId = localStorage.getItem("rentabilidad_storeId") || "";
 let unsubscribe = null;
 
@@ -484,19 +510,13 @@ $("saveBtn").addEventListener("click", async () => {
     categoria: $("categoriaInput").value,
     monto: monto,
     nota: $("notaInput").value.trim(),
-    fecha: $("fechaInput").value || new Date().toISOString().slice(0,10)
+    fecha: $("fechaInput").value || new Date().toISOString().slice(0,10),
+    timestamp: Date.now()
   };
   $("saveBtn").disabled = true;
-  $("saveBtn").textContent = editandoId ? "Actualizando..." : "Guardando...";
+  $("saveBtn").textContent = "Guardando...";
   try{
-    const coll = db.collection("tiendas").doc(storeId).collection("movimientos");
-    if(editandoId){
-      await coll.doc(editandoId).update(data);
-      cancelarEdicion();
-    }else{
-      data.timestamp = Date.now();
-      await coll.add(data);
-    }
+    await db.collection("tiendas").doc(storeId).collection("movimientos").add(data);
     $("montoInput").value = "";
     $("notaInput").value = "";
   }catch(e){
@@ -504,45 +524,87 @@ $("saveBtn").addEventListener("click", async () => {
     console.error(e);
   }
   $("saveBtn").disabled = false;
-  $("saveBtn").textContent = editandoId ? "Actualizar movimiento" : "Guardar movimiento";
+  $("saveBtn").textContent = "Guardar movimiento";
+});
+
+/* ---------- Editar movimiento (modal rápido) ---------- */
+let editTipo = "ingreso";
+let editandoId = null;
+
+function fillEditCategorias(){
+  const sel = $("editCategoriaInput");
+  sel.innerHTML = "";
+  const list = editTipo === "ingreso" ? CATS_INGRESO : CATS_GASTO;
+  list.forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+}
+$("editBtnIngreso").addEventListener("click", () => {
+  editTipo = "ingreso";
+  $("editBtnIngreso").classList.add("active-ingreso");
+  $("editBtnGasto").classList.remove("active-gasto");
+  fillEditCategorias();
+});
+$("editBtnGasto").addEventListener("click", () => {
+  editTipo = "gasto";
+  $("editBtnGasto").classList.add("active-gasto");
+  $("editBtnIngreso").classList.remove("active-ingreso");
+  fillEditCategorias();
 });
 
 function editarMov(id){
-  const m = movimientos.find(x => x.id === id);
-  if(!m) return;
-  editandoId = id;
-  tipoActual = m.tipo;
-  if(m.tipo === "ingreso"){
-    $("btnIngreso").classList.add("active-ingreso");
-    $("btnGasto").classList.remove("active-gasto");
-  }else{
-    $("btnGasto").classList.add("active-gasto");
-    $("btnIngreso").classList.remove("active-ingreso");
+  try{
+    const m = movimientos.find(x => x.id === id);
+    if(!m){ alert("No se encontró ese movimiento. Recarga la página."); return; }
+    editandoId = id;
+    editTipo = m.tipo;
+    $("editBtnIngreso").classList.toggle("active-ingreso", m.tipo === "ingreso");
+    $("editBtnGasto").classList.toggle("active-gasto", m.tipo === "gasto");
+    fillEditCategorias();
+    $("editCategoriaInput").value = m.categoria;
+    $("editMontoInput").value = m.monto;
+    $("editFechaInput").value = m.fecha;
+    $("editNotaInput").value = m.nota || "";
+    $("editModalBg").classList.remove("hidden");
+  }catch(e){
+    console.error("Error al editar:", e);
+    alert("Ocurrió un error al abrir la edición. Revisa la consola (F12) para más detalle.");
   }
-  fillCategorias();
-  $("categoriaInput").value = m.categoria;
-  $("montoInput").value = m.monto;
-  $("notaInput").value = m.nota || "";
-  $("fechaInput").value = m.fecha;
-  $("saveBtn").textContent = "Actualizar movimiento";
-  $("cancelEditBtn").classList.remove("hidden");
-  document.querySelector(".card").scrollIntoView({behavior:"smooth", block:"start"});
 }
-
-function cancelarEdicion(){
+$("editCancelBtn").addEventListener("click", () => {
   editandoId = null;
-  $("montoInput").value = "";
-  $("notaInput").value = "";
-  $("fechaInput").valueAsDate = new Date();
-  $("saveBtn").textContent = "Guardar movimiento";
-  $("cancelEditBtn").classList.add("hidden");
-}
-$("cancelEditBtn").addEventListener("click", cancelarEdicion);
+  $("editModalBg").classList.add("hidden");
+});
+$("editSaveBtn").addEventListener("click", async () => {
+  const monto = parseFloat($("editMontoInput").value);
+  if(!monto || monto <= 0){ $("editMontoInput").focus(); return; }
+  if(!editandoId) return;
+  const data = {
+    tipo: editTipo,
+    categoria: $("editCategoriaInput").value,
+    monto: monto,
+    nota: $("editNotaInput").value.trim(),
+    fecha: $("editFechaInput").value
+  };
+  $("editSaveBtn").disabled = true;
+  $("editSaveBtn").textContent = "Guardando...";
+  try{
+    await db.collection("tiendas").doc(storeId).collection("movimientos").doc(editandoId).update(data);
+    $("editModalBg").classList.add("hidden");
+    editandoId = null;
+  }catch(e){
+    alert("No se pudo guardar el cambio. Revisa tu conexión.");
+    console.error(e);
+  }
+  $("editSaveBtn").disabled = false;
+  $("editSaveBtn").textContent = "Guardar";
+});
 
 async function borrarMov(id){
   if(!confirm("¿Eliminar este movimiento?")) return;
   await db.collection("tiendas").doc(storeId).collection("movimientos").doc(id).delete();
-  if(editandoId === id) cancelarEdicion();
 }
 
 /* ---------- Cálculos ---------- */
@@ -661,7 +723,7 @@ function renderHistory(){
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
           <div class="mov-amt ${m.tipo==='ingreso'?'pos':'neg'}">${m.tipo==='ingreso'?'+':'-'}${fmt(m.monto).replace('-','').replace('$','$')}</div>
-          <button class="mov-del" onclick="editarMov('${m.id}')" title="Editar">✎</button>
+          <button class="mov-edit" onclick="editarMov('${m.id}')" title="Editar">✎</button>
           <button class="mov-del" onclick="borrarMov('${m.id}')" title="Eliminar">✕</button>
         </div>
       </div>`).join("");
