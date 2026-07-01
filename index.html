@@ -363,8 +363,8 @@
   </div>
 
   <div class="chart-wrap">
-    <h2>Últimos 14 días</h2>
-    <canvas id="chart"></canvas>
+    <h2>Últimos 30 días</h2>
+    <canvas id="chart" style="height:170px;"></canvas>
   </div>
 
   <div class="history">
@@ -669,13 +669,14 @@ function renderChart(){
   const canvas = $("chart");
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth, h = 120;
+  const w = canvas.clientWidth, h = 170;
   canvas.width = w * dpr; canvas.height = h * dpr;
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,w,h);
 
+  const N = 30;
   const days = [];
-  for(let i = 13; i >= 0; i--){
+  for(let i = N-1; i >= 0; i--){
     const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-i);
     days.push(d);
   }
@@ -683,21 +684,60 @@ function renderChart(){
     const key = d.toISOString().slice(0,10);
     return movimientos.filter(m => m.fecha === key).reduce((a,m)=>a+netoDe(m),0);
   });
-  const maxAbs = Math.max(1, ...netos.map(n=>Math.abs(n)));
-  const barW = w / days.length;
-  const midY = h/2;
 
-  ctx.strokeStyle = "#DDD6C7";
-  ctx.beginPath(); ctx.moveTo(0, midY); ctx.lineTo(w, midY); ctx.stroke();
+  // Márgenes para dejar espacio a etiquetas de eje Y y fechas
+  const padL = 44, padR = 6, padT = 12, padB = 22;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
 
-  netos.forEach((n, i) => {
-    const barH = (Math.abs(n)/maxAbs) * (h/2 - 8);
-    const x = i * barW + barW*0.2;
-    const bw = barW*0.6;
-    ctx.fillStyle = n >= 0 ? "#2F6B4F" : "#B5482A";
-    if(n >= 0) ctx.fillRect(x, midY - barH, bw, barH);
-    else ctx.fillRect(x, midY, bw, barH);
+  const maxVal = Math.max(1, ...netos);
+  const minVal = Math.min(-1, ...netos);
+  const range = maxVal - minVal || 1;
+  const xForI = i => padL + (i/(N-1)) * plotW;
+  const yForV = v => padT + plotH - ((v - minVal)/range) * plotH;
+
+  // Líneas de referencia del eje Y (min, 0, max)
+  ctx.strokeStyle = "#EFEAE0";
+  ctx.fillStyle = "#5B6862";
+  ctx.font = "10px 'IBM Plex Mono', monospace";
+  ctx.textBaseline = "middle";
+  [maxVal, 0, minVal].forEach(v => {
+    const y = yForV(v);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    ctx.fillText(fmt(Math.round(v)), 2, y);
   });
+
+  // Línea de cero más marcada
+  ctx.strokeStyle = "#DDD6C7";
+  ctx.beginPath(); ctx.moveTo(padL, yForV(0)); ctx.lineTo(w - padR, yForV(0)); ctx.stroke();
+
+  // La línea de datos, coloreada por tramo según si va sobre o bajo cero
+  for(let i = 0; i < netos.length - 1; i++){
+    const x1 = xForI(i), y1 = yForV(netos[i]);
+    const x2 = xForI(i+1), y2 = yForV(netos[i+1]);
+    const avg = (netos[i] + netos[i+1]) / 2;
+    ctx.strokeStyle = avg >= 0 ? "#2F6B4F" : "#B5482A";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  }
+  // Puntos
+  netos.forEach((n, i) => {
+    ctx.fillStyle = n >= 0 ? "#2F6B4F" : "#B5482A";
+    ctx.beginPath();
+    ctx.arc(xForI(i), yForV(n), 2.5, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  // Etiquetas de fecha: inicio, mitad, fin
+  ctx.fillStyle = "#5B6862";
+  ctx.textBaseline = "alphabetic";
+  const labelDate = d => d.toLocaleDateString("es-MX", {day:'numeric', month:'short'});
+  ctx.textAlign = "left";
+  ctx.fillText(labelDate(days[0]), padL, h - 6);
+  ctx.textAlign = "center";
+  ctx.fillText(labelDate(days[Math.floor(N/2)]), padL + plotW/2, h - 6);
+  ctx.textAlign = "right";
+  ctx.fillText(labelDate(days[N-1]), w - padR, h - 6);
 }
 
 function renderHistory(){
