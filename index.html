@@ -45,14 +45,19 @@
     gap:12px;
   }
   header h1{
-    font-size:1.05rem;
+    font-size:.72rem;
     margin:0;
-    letter-spacing:.02em;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    font-weight:600;
   }
   header .sub{
-    font-size:.72rem;
-    color:var(--ink-soft);
-    margin-top:3px;
+    font-size:1.15rem;
+    font-weight:700;
+    color:var(--ink);
+    margin-top:4px;
+    letter-spacing:.01em;
   }
   #storeBtn{
     background:none;
@@ -349,6 +354,7 @@
       </div>
     </div>
     <button id="saveBtn">Guardar movimiento</button>
+    <button id="cancelEditBtn" class="hidden" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink-soft);font-size:.85rem;cursor:pointer;margin-top:8px;">Cancelar edición</button>
   </div>
 
   <div class="chart-wrap">
@@ -357,7 +363,10 @@
   </div>
 
   <div class="history">
-    <h2>Movimientos</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h2 style="margin:0;">Movimientos</h2>
+      <button id="exportBtn" style="background:var(--ink);border:none;border-radius:10px;padding:11px 18px;font-size:.85rem;font-weight:600;color:var(--paper);cursor:pointer;">⬇ Exportar CSV</button>
+    </div>
     <div id="historyList"><div class="empty">Cargando...</div></div>
   </div>
 
@@ -398,6 +407,7 @@ const CATS_GASTO = ["Inventario / mercancía", "Renta", "Servicios (luz, agua, i
 /* ---------- Estado ---------- */
 let tipoActual = "ingreso";
 let movimientos = [];
+let editandoId = null;
 let storeId = localStorage.getItem("rentabilidad_storeId") || "";
 let unsubscribe = null;
 
@@ -474,13 +484,19 @@ $("saveBtn").addEventListener("click", async () => {
     categoria: $("categoriaInput").value,
     monto: monto,
     nota: $("notaInput").value.trim(),
-    fecha: $("fechaInput").value || new Date().toISOString().slice(0,10),
-    timestamp: Date.now()
+    fecha: $("fechaInput").value || new Date().toISOString().slice(0,10)
   };
   $("saveBtn").disabled = true;
-  $("saveBtn").textContent = "Guardando...";
+  $("saveBtn").textContent = editandoId ? "Actualizando..." : "Guardando...";
   try{
-    await db.collection("tiendas").doc(storeId).collection("movimientos").add(data);
+    const coll = db.collection("tiendas").doc(storeId).collection("movimientos");
+    if(editandoId){
+      await coll.doc(editandoId).update(data);
+      cancelarEdicion();
+    }else{
+      data.timestamp = Date.now();
+      await coll.add(data);
+    }
     $("montoInput").value = "";
     $("notaInput").value = "";
   }catch(e){
@@ -488,12 +504,45 @@ $("saveBtn").addEventListener("click", async () => {
     console.error(e);
   }
   $("saveBtn").disabled = false;
-  $("saveBtn").textContent = "Guardar movimiento";
+  $("saveBtn").textContent = editandoId ? "Actualizar movimiento" : "Guardar movimiento";
 });
+
+function editarMov(id){
+  const m = movimientos.find(x => x.id === id);
+  if(!m) return;
+  editandoId = id;
+  tipoActual = m.tipo;
+  if(m.tipo === "ingreso"){
+    $("btnIngreso").classList.add("active-ingreso");
+    $("btnGasto").classList.remove("active-gasto");
+  }else{
+    $("btnGasto").classList.add("active-gasto");
+    $("btnIngreso").classList.remove("active-ingreso");
+  }
+  fillCategorias();
+  $("categoriaInput").value = m.categoria;
+  $("montoInput").value = m.monto;
+  $("notaInput").value = m.nota || "";
+  $("fechaInput").value = m.fecha;
+  $("saveBtn").textContent = "Actualizar movimiento";
+  $("cancelEditBtn").classList.remove("hidden");
+  document.querySelector(".card").scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function cancelarEdicion(){
+  editandoId = null;
+  $("montoInput").value = "";
+  $("notaInput").value = "";
+  $("fechaInput").valueAsDate = new Date();
+  $("saveBtn").textContent = "Guardar movimiento";
+  $("cancelEditBtn").classList.add("hidden");
+}
+$("cancelEditBtn").addEventListener("click", cancelarEdicion);
 
 async function borrarMov(id){
   if(!confirm("¿Eliminar este movimiento?")) return;
   await db.collection("tiendas").doc(storeId).collection("movimientos").doc(id).delete();
+  if(editandoId === id) cancelarEdicion();
 }
 
 /* ---------- Cálculos ---------- */
@@ -612,7 +661,8 @@ function renderHistory(){
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
           <div class="mov-amt ${m.tipo==='ingreso'?'pos':'neg'}">${m.tipo==='ingreso'?'+':'-'}${fmt(m.monto).replace('-','').replace('$','$')}</div>
-          <button class="mov-del" onclick="borrarMov('${m.id}')">✕</button>
+          <button class="mov-del" onclick="editarMov('${m.id}')" title="Editar">✎</button>
+          <button class="mov-del" onclick="borrarMov('${m.id}')" title="Eliminar">✕</button>
         </div>
       </div>`).join("");
     return `<div class="day-group"><div class="day-head">${label}</div>${rows}</div>`;
@@ -621,6 +671,41 @@ function renderHistory(){
 function escapeHtml(s){
   return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+
+/* ---------- Exportar CSV ---------- */
+function escapeCsv(s){
+  s = String(s ?? "");
+  if(/[",\n]/.test(s)) return '"' + s.replace(/"/g,'""') + '"';
+  return s;
+}
+$("exportBtn").addEventListener("click", () => {
+  if(movimientos.length === 0){
+    alert("No hay movimientos para exportar todavía.");
+    return;
+  }
+  const filas = [["Fecha","Tipo","Categoría","Monto","Nota"]];
+  const ordenados = [...movimientos].sort((a,b) => a.fecha.localeCompare(b.fecha) || a.timestamp - b.timestamp);
+  ordenados.forEach(m => {
+    filas.push([
+      m.fecha,
+      m.tipo === "ingreso" ? "Ingreso" : "Gasto",
+      m.categoria,
+      m.monto,
+      m.nota || ""
+    ]);
+  });
+  const csv = "\uFEFF" + filas.map(f => f.map(escapeCsv).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const hoy = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `movimientos-${storeId || "tienda"}-${hoy}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
 
 window.addEventListener("resize", renderChart);
 initStore();
