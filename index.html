@@ -399,6 +399,19 @@
   </div>
 </div>
 
+<div id="passModalBg" class="modal-bg hidden">
+  <div class="modal">
+    <h3>Contraseña requerida</h3>
+    <p>Escribe la contraseña para cambiar de tienda.</p>
+    <input type="password" id="passInput" placeholder="Contraseña" autocomplete="off" style="margin-bottom:6px;">
+    <div id="passError" style="color:#B3261E;font-size:.8rem;min-height:18px;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:10px;">
+      <button id="passCancelBtn" style="flex:1;padding:11px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--ink-soft);cursor:pointer;">Cancelar</button>
+      <button id="passOkBtn" style="flex:1;padding:11px;border:none;border-radius:8px;background:var(--ink);color:var(--paper);font-weight:600;cursor:pointer;">Continuar</button>
+    </div>
+  </div>
+</div>
+
 <div id="storeModalBg" class="modal-bg hidden">
   <div class="modal">
     <h3>Identifica tu tienda</h3>
@@ -448,7 +461,29 @@ function initStore(){
     startListening();
   }
 }
-$("storeBtn").addEventListener("click", () => $("storeModalBg").classList.remove("hidden"));
+const STORE_PASSWORD = "1234"; // <-- CAMBIA ESTA CONTRASEÑA
+function cerrarPass(){
+  $("passModalBg").classList.add("hidden");
+  $("passInput").value = "";
+  $("passError").textContent = "";
+}
+function verificarPass(){
+  if($("passInput").value === STORE_PASSWORD){
+    cerrarPass();
+    $("storeModalBg").classList.remove("hidden");
+  } else {
+    $("passError").textContent = "Contraseña incorrecta";
+    $("passInput").value = "";
+    $("passInput").focus();
+  }
+}
+$("storeBtn").addEventListener("click", () => {
+  $("passModalBg").classList.remove("hidden");
+  $("passInput").focus();
+});
+$("passOkBtn").addEventListener("click", verificarPass);
+$("passCancelBtn").addEventListener("click", cerrarPass);
+$("passInput").addEventListener("keydown", e => { if(e.key === "Enter") verificarPass(); });
 $("storeSaveBtn").addEventListener("click", () => {
   const val = $("storeIdInput").value.trim().toLowerCase().replace(/\s+/g,'-');
   if(!val) return;
@@ -505,12 +540,17 @@ $("saveBtn").addEventListener("click", async () => {
   const monto = parseFloat($("montoInput").value);
   if(!monto || monto <= 0){ $("montoInput").focus(); return; }
   if(!storeId){ $("storeModalBg").classList.remove("hidden"); return; }
+  const fechaNueva = $("fechaInput").value || new Date().toISOString().slice(0,10);
+  if(movimientos.some(m => m.fecha === fechaNueva)){
+    alert("⚠️ La fecha " + fechaNueva + " ya está registrada.");
+    return;
+  }
   const data = {
     tipo: tipoActual,
     categoria: $("categoriaInput").value,
     monto: monto,
     nota: $("notaInput").value.trim(),
-    fecha: $("fechaInput").value || new Date().toISOString().slice(0,10),
+    fecha: fechaNueva,
     timestamp: Date.now()
   };
   $("saveBtn").disabled = true;
@@ -581,6 +621,11 @@ $("editSaveBtn").addEventListener("click", async () => {
   const monto = parseFloat($("editMontoInput").value);
   if(!monto || monto <= 0){ $("editMontoInput").focus(); return; }
   if(!editandoId) return;
+  const fechaEdit = $("editFechaInput").value;
+  if(movimientos.some(m => m.fecha === fechaEdit && m.id !== editandoId)){
+    alert("⚠️ La fecha " + fechaEdit + " ya está registrada.");
+    return;
+  }
   const data = {
     tipo: editTipo,
     categoria: $("editCategoriaInput").value,
