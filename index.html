@@ -541,8 +541,8 @@ $("saveBtn").addEventListener("click", async () => {
   if(!monto || monto <= 0){ $("montoInput").focus(); return; }
   if(!storeId){ $("storeModalBg").classList.remove("hidden"); return; }
   const fechaNueva = $("fechaInput").value || new Date().toISOString().slice(0,10);
-  if(movimientos.some(m => m.fecha === fechaNueva)){
-    alert("⚠️ La fecha " + fechaNueva + " ya está registrada.");
+  if(movimientos.some(m => m.fecha === fechaNueva && m.tipo === tipoActual)){
+    alert("⚠️ La fecha " + fechaNueva + " ya está registrada con un " + tipoActual + ". Solo se permite un ingreso y un gasto por fecha.");
     return;
   }
   const data = {
@@ -622,8 +622,8 @@ $("editSaveBtn").addEventListener("click", async () => {
   if(!monto || monto <= 0){ $("editMontoInput").focus(); return; }
   if(!editandoId) return;
   const fechaEdit = $("editFechaInput").value;
-  if(movimientos.some(m => m.fecha === fechaEdit && m.id !== editandoId)){
-    alert("⚠️ La fecha " + fechaEdit + " ya está registrada.");
+  if(movimientos.some(m => m.fecha === fechaEdit && m.tipo === editTipo && m.id !== editandoId)){
+    alert("⚠️ La fecha " + fechaEdit + " ya está registrada con un " + editTipo + ". Solo se permite un ingreso y un gasto por fecha.");
     return;
   }
   const data = {
