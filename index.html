@@ -142,7 +142,7 @@
   /* ---- Summary strip ---- */
   .strip{
     display:grid;
-    grid-template-columns:repeat(3,1fr);
+    grid-template-columns:repeat(auto-fit,minmax(80px,1fr));
     gap:10px;
     margin-bottom:24px;
   }
@@ -156,6 +156,20 @@
   .tile .t-value{font-size:1.05rem;font-weight:600;margin-top:3px;}
   .tile .t-value.neg{color:var(--red);}
   .tile .t-value.pos{color:var(--green);}
+
+  /* ---- Mes consultado ---- */
+  .mes-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+  .mes-bar label{font-size:.65rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;}
+  .mes-bar select{
+    flex:1;min-width:0;font-family:'Work Sans',sans-serif;font-size:.85rem;
+    border:1px solid var(--line);border-radius:8px;background:var(--card);
+    color:var(--ink);padding:8px 10px;cursor:pointer;
+  }
+  #toggleHistBtn{
+    width:100%;padding:11px;margin-bottom:12px;border:1px solid var(--line);
+    border-radius:10px;background:var(--card);color:var(--ink);
+    font-size:.85rem;font-weight:600;cursor:pointer;
+  }
 
   /* ---- Utilidad neta ---- */
   .util-title{font-size:.7rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px 2px;}
@@ -308,6 +322,11 @@
 
 <main>
 
+  <div class="mes-bar">
+    <label for="mesSelect">Consultar mes</label>
+    <select id="mesSelect"></select>
+  </div>
+
   <div class="balance-block">
     <div>
       <div class="balance-label">Balance</div>
@@ -324,34 +343,34 @@
   </div>
 
   <div class="strip">
-    <div class="tile">
+    <div class="tile" id="tileHoy">
       <div class="t-label">Hoy</div>
       <div class="t-value mono" id="sumHoy">$0</div>
     </div>
-    <div class="tile">
-      <div class="t-label">Semana</div>
+    <div class="tile" id="tileSemana">
+      <div class="t-label">Semana actual</div>
       <div class="t-value mono" id="sumSemana">$0</div>
     </div>
     <div class="tile">
-      <div class="t-label">Mes</div>
+      <div class="t-label" id="lblMes">Mes actual</div>
       <div class="t-value mono" id="sumMes">$0</div>
     </div>
   </div>
 
   <div class="util-title">Utilidad neta</div>
   <div class="strip util-strip">
-    <div class="tile">
-      <div class="t-label">Semana</div>
+    <div class="tile" id="tileUtilSemana">
+      <div class="t-label">Semana actual</div>
       <div class="t-value mono" id="utilSemana">$0</div>
       <div class="t-sub" id="subSemana"></div>
     </div>
     <div class="tile">
-      <div class="t-label">Mes</div>
+      <div class="t-label" id="lblUtilMes">Mes actual</div>
       <div class="t-value mono" id="utilMes">$0</div>
       <div class="t-sub" id="subMes"></div>
     </div>
     <div class="tile">
-      <div class="t-label">Año</div>
+      <div class="t-label" id="lblUtilAnio">Año actual</div>
       <div class="t-value mono" id="utilAnio">$0</div>
       <div class="t-sub" id="subAnio"></div>
     </div>
@@ -388,16 +407,17 @@
   </div>
 
   <div class="chart-wrap">
-    <h2>Últimos 30 días</h2>
+    <h2 id="chartTitle">Últimos 30 días</h2>
     <canvas id="chart" style="height:170px;"></canvas>
   </div>
 
   <div class="history">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <h2 style="margin:0;">Movimientos</h2>
+      <h2 style="margin:0;" id="histTitle">Movimientos</h2>
       <button id="exportBtn" style="background:var(--ink);border:none;border-radius:10px;padding:11px 18px;font-size:.85rem;font-weight:600;color:var(--paper);cursor:pointer;">⬇ Exportar CSV</button>
     </div>
-    <div id="historyList"><div class="empty">Cargando...</div></div>
+    <button id="toggleHistBtn" type="button">Mostrar movimientos</button>
+    <div id="historyList" class="hidden"><div class="empty">Cargando...</div></div>
   </div>
 
 </main>
@@ -691,46 +711,99 @@ function startOfWeek(d){
   dt.setHours(0,0,0,0);
   return dt;
 }
-function sumaPeriodo(periodo){
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
-  const inicioSemana = startOfWeek(hoy);
-  return movimientos.reduce((acc, m) => {
-    const f = new Date(m.fecha + "T00:00:00");
-    let incluir = false;
-    if(periodo === "hoy") incluir = f.getTime() === hoy.getTime();
-    else if(periodo === "semana") incluir = f >= inicioSemana;
-    else if(periodo === "mes") incluir = f.getFullYear() === hoy.getFullYear() && f.getMonth() === hoy.getMonth();
-    else if(periodo === "anio") incluir = f.getFullYear() === hoy.getFullYear();
-    else if(periodo === "total") incluir = true;
-    return incluir ? acc + netoDe(m) : acc;
-  }, 0);
+/* ---------- Mes consultado ---------- */
+let mesVista = null;          // null = mes actual; si no, "YYYY-MM"
+let historialVisible = false; // los movimientos inician ocultos
+function pad2(n){ return String(n).padStart(2,"0"); }
+function keyDe(d){ return d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate()); }
+function mesActualKey(){ const h = new Date(); return h.getFullYear() + "-" + pad2(h.getMonth()+1); }
+function refMes(){
+  const [y, mo] = (mesVista || mesActualKey()).split("-").map(Number);
+  return { y, mo: mo - 1 };
 }
-
-function desglosePeriodo(periodo){
+function nombreMes(k){
+  const [y, mo] = k.split("-").map(Number);
+  const t = new Date(y, mo-1, 1).toLocaleDateString("es-MX", {month:"long", year:"numeric"});
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+function incluyePeriodo(m, periodo){
   const hoy = new Date(); hoy.setHours(0,0,0,0);
-  const inicioSemana = startOfWeek(hoy);
+  const f = new Date(m.fecha + "T00:00:00");
+  const r = refMes();
+  if(periodo === "hoy") return f.getTime() === hoy.getTime();
+  if(periodo === "semana") return f >= startOfWeek(hoy);
+  if(periodo === "mes") return f.getFullYear() === r.y && f.getMonth() === r.mo;
+  if(periodo === "anio") return f.getFullYear() === r.y;
+  if(periodo === "total") return true;
+  return false;
+}
+function sumaPeriodo(periodo){
+  return movimientos.reduce((acc, m) => incluyePeriodo(m, periodo) ? acc + netoDe(m) : acc, 0);
+}
+function desglosePeriodo(periodo){
   let ing = 0, gas = 0;
   movimientos.forEach(m => {
-    const f = new Date(m.fecha + "T00:00:00");
-    let incluir = false;
-    if(periodo === "semana") incluir = f >= inicioSemana;
-    else if(periodo === "mes") incluir = f.getFullYear() === hoy.getFullYear() && f.getMonth() === hoy.getMonth();
-    else if(periodo === "anio") incluir = f.getFullYear() === hoy.getFullYear();
-    if(!incluir) return;
+    if(!incluyePeriodo(m, periodo)) return;
     if(m.tipo === "ingreso") ing += m.monto; else gas += m.monto;
   });
   return { ing, gas, neto: ing - gas };
 }
 
 /* ---------- Render ---------- */
+function renderMesSelect(){
+  const sel = $("mesSelect");
+  const actual = mesActualKey();
+  let minKey = actual;
+  movimientos.forEach(m => { const k = m.fecha.slice(0,7); if(k < minKey) minKey = k; });
+  const opts = [];
+  let [y, mo] = actual.split("-").map(Number);
+  const [y0, m0] = minKey.split("-").map(Number);
+  while(y > y0 || (y === y0 && mo >= m0)){
+    opts.push(y + "-" + pad2(mo));
+    mo--; if(mo === 0){ mo = 12; y--; }
+  }
+  if(mesVista && !opts.includes(mesVista)) opts.push(mesVista);
+  sel.innerHTML = opts.map(k => k === actual
+    ? `<option value="${k}">Mes actual (${nombreMes(k)})</option>`
+    : `<option value="${k}">${nombreMes(k)}</option>`).join("");
+  sel.value = mesVista || actual;
+}
+$("mesSelect").addEventListener("change", e => {
+  mesVista = e.target.value === mesActualKey() ? null : e.target.value;
+  renderAll();
+});
+
+function renderEtiquetas(){
+  const pasado = !!mesVista;
+  const nm = pasado ? nombreMes(mesVista) : "Mes actual";
+  const anio = pasado ? "Año " + refMes().y : "Año actual";
+  ["tileHoy","tileSemana","tileUtilSemana"].forEach(id => $(id).classList.toggle("hidden", pasado));
+  $("lblMes").textContent = nm;
+  $("lblUtilMes").textContent = nm;
+  $("lblUtilAnio").textContent = anio;
+}
+
 function renderAll(){
+  renderMesSelect();
+  renderEtiquetas();
   renderBalance();
   renderStrip();
   renderUtilidad();
   renderChart();
   renderHistory();
 }
+function actualizarOpcionesPeriodo(){
+  const pasado = !!mesVista;
+  const sel = $("periodoSelect");
+  const prev = sel.value || "mes";
+  const items = pasado
+    ? [["mes", nombreMes(mesVista)], ["anio", "año " + refMes().y], ["total", "desde el inicio"]]
+    : [["mes","mes actual"], ["semana","semana actual"], ["hoy","hoy"], ["anio","año actual"], ["total","desde el inicio"]];
+  sel.innerHTML = items.map(([v,t]) => `<option value="${v}">${t}</option>`).join("");
+  sel.value = items.some(i => i[0] === prev) ? prev : "mes";
+}
 function renderBalance(){
+  actualizarOpcionesPeriodo();
   const periodo = $("periodoSelect").value;
   const total = sumaPeriodo(periodo);
   const bv = $("balanceValue");
@@ -772,14 +845,21 @@ function renderChart(){
   ctx.setTransform(dpr,0,0,dpr,0,0);
   ctx.clearRect(0,0,w,h);
 
-  const N = 30;
   const days = [];
-  for(let i = N-1; i >= 0; i--){
-    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-i);
-    days.push(d);
+  if(mesVista){
+    const r = refMes();
+    const n = new Date(r.y, r.mo + 1, 0).getDate();
+    for(let i = 1; i <= n; i++) days.push(new Date(r.y, r.mo, i));
+  } else {
+    for(let i = 29; i >= 0; i--){
+      const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-i);
+      days.push(d);
+    }
   }
+  const N = days.length;
+  $("chartTitle").textContent = mesVista ? "Movimiento diario · " + nombreMes(mesVista) : "Últimos 30 días";
   const netos = days.map(d => {
-    const key = d.toISOString().slice(0,10);
+    const key = keyDe(d);
     return movimientos.filter(m => m.fecha === key).reduce((a,m)=>a+netoDe(m),0);
   });
 
@@ -840,12 +920,21 @@ function renderChart(){
 
 function renderHistory(){
   const list = $("historyList");
+  const kMes = mesVista || mesActualKey();
+  const delMes = movimientos.filter(m => m.fecha.slice(0,7) === kMes);
+  $("histTitle").textContent = "Movimientos · " + nombreMes(kMes);
+  $("toggleHistBtn").textContent = (historialVisible ? "Ocultar movimientos" : "Mostrar movimientos") + " (" + delMes.length + ")";
+  list.classList.toggle("hidden", !historialVisible);
   if(movimientos.length === 0){
     list.innerHTML = '<div class="empty">Aún no hay movimientos. Agrega el primero arriba ↑</div>';
     return;
   }
+  if(delMes.length === 0){
+    list.innerHTML = '<div class="empty">No hay movimientos en ' + nombreMes(kMes) + '.</div>';
+    return;
+  }
   const groups = {};
-  movimientos.forEach(m => {
+  delMes.forEach(m => {
     if(!groups[m.fecha]) groups[m.fecha] = [];
     groups[m.fecha].push(m);
   });
@@ -871,6 +960,11 @@ function renderHistory(){
 function escapeHtml(s){
   return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+
+$("toggleHistBtn").addEventListener("click", () => {
+  historialVisible = !historialVisible;
+  renderHistory();
+});
 
 /* ---------- Exportar CSV ---------- */
 function escapeCsv(s){
