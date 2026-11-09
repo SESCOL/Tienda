@@ -575,10 +575,10 @@ $("saveBtn").addEventListener("click", async () => {
   if(!monto || monto <= 0){ $("montoInput").focus(); return; }
   if(!storeId){ $("storeModalBg").classList.remove("hidden"); return; }
   const fechaNueva = $("fechaInput").value || keyDe(new Date());
-  // Hoy se pueden registrar varios ingresos y gastos (se suman); en otras fechas, solo uno de cada tipo
+  // Hoy los montos del mismo tipo se suman en un solo movimiento; en otras fechas, solo uno de cada tipo (se bloquea)
   const esHoy = fechaNueva === keyDe(new Date());
   if(!esHoy && movimientos.some(m => m.fecha === fechaNueva && m.tipo === tipoActual)){
-    alert("⚠️ La fecha " + fechaNueva + " ya está registrada con un " + tipoActual + ". Solo se permite un ingreso y un gasto por fecha.");
+    alert("⚠️ La fecha " + fechaNueva + " ya está registrada con un " + tipoActual + ". Solo se permite un ingreso y un gasto por fecha, edita directo en la fecha.");
     return;
   }
   const data = {
@@ -592,7 +592,22 @@ $("saveBtn").addEventListener("click", async () => {
   $("saveBtn").disabled = true;
   $("saveBtn").textContent = "Guardando...";
   try{
-    await db.collection("tiendas").doc(storeId).collection("movimientos").add(data);
+    const col = db.collection("tiendas").doc(storeId).collection("movimientos");
+    // Hoy: si ya hay un movimiento del mismo tipo, se suma el monto en ese mismo movimiento
+    const existente = esHoy ? movimientos.find(m => m.fecha === fechaNueva && m.tipo === tipoActual) : null;
+    if(existente){
+      const extras = [];
+      if(data.categoria && data.categoria !== existente.categoria) extras.push(data.categoria);
+      if(data.nota) extras.push(data.nota);
+      const notaFinal = [existente.nota, extras.join(" - ")].filter(Boolean).join(" | ");
+      await col.doc(existente.id).update({
+        monto: (Number(existente.monto) || 0) + monto,
+        nota: notaFinal,
+        timestamp: Date.now()
+      });
+    } else {
+      await col.add(data);
+    }
     $("montoInput").value = "";
     $("notaInput").value = "";
   }catch(e){
@@ -660,7 +675,7 @@ $("editSaveBtn").addEventListener("click", async () => {
   const fechaEdit = $("editFechaInput").value;
   const editEsHoy = fechaEdit === keyDe(new Date());
   if(!editEsHoy && movimientos.some(m => m.fecha === fechaEdit && m.tipo === editTipo && m.id !== editandoId)){
-    alert("⚠️ La fecha " + fechaEdit + " ya está registrada con un " + editTipo + ". Solo se permite un ingreso y un gasto por fecha.");
+    alert("⚠️ La fecha " + fechaEdit + " ya está registrada con un " + editTipo + ". Solo se permite un ingreso y un gasto por fecha, edita directo en la fecha.");
     return;
   }
   const data = {
