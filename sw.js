@@ -1,5 +1,5 @@
 // Cambia este número cada vez que subas una nueva versión
-const CACHE = "libro-mayor-v2";
+const CACHE = "libro-mayor-v3";
 
 self.addEventListener("install", e => {
   self.skipWaiting();
