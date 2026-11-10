@@ -161,6 +161,36 @@
     font-size:.85rem;font-weight:600;cursor:pointer;
   }
 
+  /* ---- Pestañas y Tiendas ---- */
+  .tabs{display:flex;gap:8px;max-width:640px;margin:0 auto;padding:12px 16px 0;}
+  .tab{
+    flex:1;padding:9px;border:1px solid var(--line);border-radius:10px;
+    background:var(--card);color:var(--ink-soft);font-weight:600;font-size:.82rem;cursor:pointer;
+    font-family:'Work Sans',sans-serif;
+  }
+  .tab.active{background:var(--green-bg);color:var(--green);border-color:var(--green);}
+  #vistaLibro.bloqueada > *:not(#bloqueoAviso){display:none !important;}
+  .bloqueo-aviso{text-align:center;padding:40px 16px;}
+  .bloqueo-aviso .ico{font-size:2.2rem;}
+  .bloqueo-aviso h2{margin:8px 0;}
+  .bloqueo-aviso p{font-size:.85rem;color:var(--ink-soft);line-height:1.4;}
+  .tienda-item{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--card);}
+  .tienda-item.bloq{background:var(--red-bg);}
+  .tienda-top{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .tienda-id{font-weight:600;font-size:.95rem;word-break:break-all;}
+  .badge{display:inline-block;font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:3px 7px;border-radius:10px;margin-left:4px;}
+  .b-act{background:var(--green-bg);color:var(--green);}
+  .b-bloq{background:var(--red);color:#fff;}
+  .tienda-fecha{font-size:.75rem;color:var(--ink-soft);margin:6px 0 10px;}
+  .tienda-acc{display:flex;gap:8px;}
+  .btn-t{
+    flex:1;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--card);
+    color:var(--ink);font-size:.78rem;font-weight:600;cursor:pointer;font-family:'Work Sans',sans-serif;
+  }
+  .btn-t{background:var(--green-bg);color:var(--green);border-color:var(--green);}
+  .btn-t.peligro{background:var(--red-bg);color:var(--red);border-color:var(--red);}
+  .btn-t:disabled{opacity:.45;cursor:not-allowed;}
+
   /* ---- Punto de equilibrio ---- */
   .pe-main{margin-bottom:10px;}
   .pe-label{font-size:.65rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;}
@@ -335,7 +365,18 @@
   </div>
 </header>
 
-<main>
+<nav class="tabs">
+  <button id="tabLibro" class="tab active" type="button">📒 Libro</button>
+  <button id="tabTiendas" class="tab" type="button">🏪 Tiendas</button>
+</nav>
+
+<main id="vistaLibro">
+
+  <div id="bloqueoAviso" class="bloqueo-aviso hidden">
+    <div class="ico">🔒</div>
+    <h2>Acceso restringido</h2>
+    <p>El acceso a esta tienda está restringido. Contacta al administrador para que lo habilite.</p>
+  </div>
 
   <div class="mes-bar">
     <label for="mesSelect">Consultar mes</label>
@@ -438,6 +479,20 @@
 
 </main>
 
+<main id="vistaTiendas" class="hidden">
+  <div class="card">
+    <h2>Mis tiendas</h2>
+    <div id="tiendasLista"><div class="empty">Cargando...</div></div>
+  </div>
+  <div class="card">
+    <h2>Registrar tienda</h2>
+    <div class="pe-hint" style="margin:0 0 10px;">Escribe el código de una tienda nueva o de una que ya usas para agregarla a la lista. Se guarda la fecha en que se registra (en tiendas que ya tenían movimientos, se usa la fecha de su primer movimiento).</div>
+    <input type="text" id="nuevaTiendaInput" placeholder="ej. panaderia-regis" style="margin-bottom:10px;">
+    <button id="nuevaTiendaBtn" type="button" style="width:100%;padding:11px;border:none;border-radius:8px;background:var(--ink);color:var(--paper);font-weight:600;cursor:pointer;">Registrar tienda</button>
+    <div class="pe-hint" id="tiendaMsg"></div>
+  </div>
+</main>
+
 <div id="editModalBg" class="modal-bg hidden">
   <div class="modal">
     <h3>Editar movimiento</h3>
@@ -463,7 +518,7 @@
 <div id="passModalBg" class="modal-bg hidden">
   <div class="modal">
     <h3>Contraseña requerida</h3>
-    <p>Escribe la contraseña para cambiar de tienda.</p>
+    <p id="passTexto">Escribe la contraseña para continuar.</p>
     <input type="password" id="passInput" placeholder="Contraseña" autocomplete="off" style="margin-bottom:6px;">
     <div id="passError" style="color:#B3261E;font-size:.8rem;min-height:18px;margin-bottom:8px;"></div>
     <div style="display:flex;gap:10px;">
@@ -522,25 +577,80 @@ function initStore(){
     startListening();
   }
 }
-const STORE_PASSWORD = "1234"; // <-- CAMBIA ESTA CONTRASEÑA
+/* Las contraseñas NO están escritas aquí: solo su huella (PBKDF2-SHA256 con sal).
+   Para cambiarlas, usa generar-contrasena.html y pega el resultado en estas líneas. */
+const PASS_STORE   = { salt: "/hGvh/2DmzLKLFhHjV6OlQ==", iter: 210000, hash: "xfwrJVvUpSe0QeHUIMHGfyXduaqWwIt8BXxKMJJiBVk=" };   // cambiar tienda
+const PASS_TIENDAS = { salt: "Ya3ugELlJ2p83/h3L+DmnQ==", iter: 210000, hash: "CU0HXWDcqWPKg5VDR+CnZrBpJtvxyZJs/4hfcG0zcds=" };   // pestaña Tiendas
+
+function b64ToBytes(b64){ return Uint8Array.from(atob(b64), c => c.charCodeAt(0)); }
+function bytesToB64(bytes){ return btoa(String.fromCharCode(...bytes)); }
+async function huellaPass(pass, cfg){
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", hash: "SHA-256", salt: b64ToBytes(cfg.salt), iterations: cfg.iter }, key, 256);
+  return bytesToB64(new Uint8Array(bits));
+}
+function igualesSeguro(a, b){
+  if(a.length !== b.length) return false;
+  let r = 0;
+  for(let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
+
+let passAccion = null, passClave = null;
+let intentosFallidos = 0, bloqueadoHasta = 0;
+function pedirPass(texto, clave, accion){
+  passAccion = accion;
+  passClave = clave;
+  $("passTexto").textContent = texto;
+  $("passModalBg").classList.remove("hidden");
+  $("passInput").focus();
+}
 function cerrarPass(){
   $("passModalBg").classList.add("hidden");
   $("passInput").value = "";
   $("passError").textContent = "";
+  passAccion = null;
+  passClave = null;
 }
-function verificarPass(){
-  if($("passInput").value === STORE_PASSWORD){
+async function verificarPass(){
+  const espera = Math.ceil((bloqueadoHasta - Date.now()) / 1000);
+  if(espera > 0){
+    $("passError").textContent = "Demasiados intentos. Espera " + espera + " s.";
+    return;
+  }
+  if(!window.crypto || !crypto.subtle){
+    $("passError").textContent = "Este navegador no puede verificar la contraseña (se requiere https).";
+    return;
+  }
+  const clave = passClave, fn = passAccion;
+  if(!clave) return;
+  let ok = false;
+  try {
+    ok = igualesSeguro(await huellaPass($("passInput").value, clave), clave.hash);
+  } catch(err){
+    console.error(err);
+  }
+  if(ok){
+    intentosFallidos = 0;
     cerrarPass();
-    $("storeModalBg").classList.remove("hidden");
+    if(fn) fn();
   } else {
-    $("passError").textContent = "Contraseña incorrecta";
+    intentosFallidos++;
     $("passInput").value = "";
+    if(intentosFallidos >= 5){
+      bloqueadoHasta = Date.now() + 30000;
+      intentosFallidos = 0;
+      $("passError").textContent = "Demasiados intentos. Espera 30 s.";
+    } else {
+      $("passError").textContent = "Contraseña incorrecta";
+    }
     $("passInput").focus();
   }
 }
 $("storeBtn").addEventListener("click", () => {
-  $("passModalBg").classList.remove("hidden");
-  $("passInput").focus();
+  pedirPass("Escribe la contraseña para cambiar de tienda.", PASS_STORE,
+    () => $("storeModalBg").classList.remove("hidden"));
 });
 $("passOkBtn").addEventListener("click", verificarPass);
 $("passCancelBtn").addEventListener("click", cerrarPass);
@@ -554,11 +664,54 @@ $("storeSaveBtn").addEventListener("click", () => {
   $("storeModalBg").classList.add("hidden");
   if(unsubscribe) unsubscribe();
   startListening();
+  mostrarVista("libro");
 });
 
 /* ---------- Firestore listener ---------- */
+let unsubStore = null;
+let storeBloqueada = false;
+function setBloqueo(b){
+  storeBloqueada = b;
+  $("vistaLibro").classList.toggle("bloqueada", b);
+  $("bloqueoAviso").classList.toggle("hidden", !b);
+}
+
+// Registra la tienda (con su fecha de creación) si todavía no existe. Devuelve true si la creó.
+async function asegurarTienda(id){
+  const ref = db.collection("tiendas").doc(id);
+  const snap = await ref.get();
+  if(snap.exists && snap.data().creada) return false;
+  let creada = keyDe(new Date());
+  let aprox = false;
+  const first = await ref.collection("movimientos").orderBy("fecha","asc").limit(1).get();
+  if(!first.empty){ creada = first.docs[0].data().fecha; aprox = true; }
+  await ref.set({ creada, creadaAprox: aprox, bloqueada: false }, { merge: true });
+  return true;
+}
+
 function startListening(){
+  if(unsubscribe){ unsubscribe(); unsubscribe = null; }
+  if(unsubStore){ unsubStore(); unsubStore = null; }
+  movimientos = [];
+  setBloqueo(false);
   $("historyList").innerHTML = '<div class="empty">Cargando...</div>';
+  asegurarTienda(storeId).catch(console.error);
+  unsubStore = db.collection("tiendas").doc(storeId).onSnapshot(doc => {
+    const bloq = doc.exists && doc.data().bloqueada === true;
+    setBloqueo(bloq);
+    if(bloq){
+      if(unsubscribe){ unsubscribe(); unsubscribe = null; }
+      movimientos = [];
+    } else if(!unsubscribe){
+      escucharMovimientos();
+    }
+  }, err => {
+    console.error(err);
+    if(!unsubscribe) escucharMovimientos();
+  });
+}
+
+function escucharMovimientos(){
   unsubscribe = db.collection("tiendas").doc(storeId).collection("movimientos")
     .orderBy("fecha","desc")
     .onSnapshot(snap => {
@@ -570,6 +723,114 @@ function startListening(){
       $("historyList").innerHTML = '<div class="empty">Error al conectar con Firebase. Revisa tu configuración.</div>';
     });
 }
+
+/* ---------- Pestañas ---------- */
+let vistaActual = "libro";
+let unsubTiendas = null;
+let tiendas = [];
+function mostrarVista(v){
+  vistaActual = v;
+  $("vistaLibro").classList.toggle("hidden", v !== "libro");
+  $("vistaTiendas").classList.toggle("hidden", v !== "tiendas");
+  $("tabLibro").classList.toggle("active", v === "libro");
+  $("tabTiendas").classList.toggle("active", v === "tiendas");
+  if(v === "tiendas"){
+    escucharTiendas();
+  } else {
+    if(unsubTiendas){ unsubTiendas(); unsubTiendas = null; }
+    renderAll();
+  }
+}
+$("tabLibro").addEventListener("click", () => mostrarVista("libro"));
+$("tabTiendas").addEventListener("click", () => {
+  if(vistaActual === "tiendas") return;
+  pedirPass("Escribe la contraseña para entrar al apartado de tiendas.", PASS_TIENDAS,
+    () => mostrarVista("tiendas"));
+});
+
+function escucharTiendas(){
+  if(unsubTiendas) unsubTiendas();
+  $("tiendasLista").innerHTML = '<div class="empty">Cargando...</div>';
+  unsubTiendas = db.collection("tiendas").onSnapshot(snap => {
+    tiendas = [];
+    snap.forEach(d => tiendas.push({ id: d.id, ...d.data() }));
+    renderTiendas();
+  }, err => {
+    console.error(err);
+    $("tiendasLista").innerHTML = '<div class="empty">No se pudo cargar la lista de tiendas.</div>';
+  });
+}
+
+function fechaLarga(k){
+  return new Date(k + "T00:00:00").toLocaleDateString("es-MX", {day:"numeric", month:"long", year:"numeric"});
+}
+function renderTiendas(){
+  const box = $("tiendasLista");
+  if(tiendas.length === 0){
+    box.innerHTML = '<div class="empty">Aún no hay tiendas registradas.</div>';
+    return;
+  }
+  const orden = [...tiendas].sort((a, b) =>
+    (a.creada || "9999").localeCompare(b.creada || "9999") || a.id.localeCompare(b.id));
+  box.innerHTML = orden.map(t => {
+    const bloq = t.bloqueada === true;
+    const actual = t.id === storeId;
+    const fecha = t.creada ? fechaLarga(t.creada) + (t.creadaAprox ? " (aprox.)" : "") : "Sin fecha";
+    const id = escapeHtml(t.id);
+    return `<div class="tienda-item${bloq ? " bloq" : ""}">
+      <div class="tienda-top">
+        <div class="tienda-id">${id}</div>
+        <div>${actual ? '<span class="badge b-act">Actual</span>' : ""}${bloq ? '<span class="badge b-bloq">Restringida</span>' : ""}</div>
+      </div>
+      <div class="tienda-fecha">Creada: ${fecha}</div>
+      <div class="tienda-acc">
+        <button class="btn-t" type="button" data-acc="abrir" data-id="${id}" ${bloq ? "disabled" : ""}>${actual ? "Ver libro" : "Abrir"}</button>
+        <button class="btn-t${bloq ? "" : " peligro"}" type="button" data-acc="${bloq ? "permitir" : "restringir"}" data-id="${id}">${bloq ? "Permitir acceso" : "Restringir acceso"}</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function abrirTienda(id){
+  storeId = id;
+  localStorage.setItem("rentabilidad_storeId", id);
+  $("storeLabel").textContent = "Tienda: " + id;
+  startListening();
+  mostrarVista("libro");
+}
+$("tiendasLista").addEventListener("click", async e => {
+  const b = e.target.closest("button[data-acc]");
+  if(!b || b.disabled) return;
+  const id = b.dataset.id, acc = b.dataset.acc;
+  if(acc === "abrir"){ abrirTienda(id); return; }
+  try {
+    if(acc === "restringir"){
+      const msg = id === storeId
+        ? "Esta es la tienda que estás usando: su libro se bloqueará en este y en todos los dispositivos. ¿Restringir el acceso a \"" + id + "\"?"
+        : "¿Restringir el acceso a \"" + id + "\"? Nadie podrá ver ni registrar movimientos hasta que lo permitas de nuevo.";
+      if(!confirm(msg)) return;
+      await db.collection("tiendas").doc(id).set({ bloqueada: true, bloqueadaEl: keyDe(new Date()) }, { merge: true });
+    } else if(acc === "permitir"){
+      await db.collection("tiendas").doc(id).set({ bloqueada: false }, { merge: true });
+    }
+  } catch(err){
+    console.error(err);
+    alert("No se pudo actualizar la tienda. Revisa tu conexión.");
+  }
+});
+$("nuevaTiendaBtn").addEventListener("click", async () => {
+  const val = $("nuevaTiendaInput").value.trim().toLowerCase().replace(/[\s\/]+/g, "-");
+  const msg = $("tiendaMsg");
+  if(!val) return;
+  try {
+    const creada = await asegurarTienda(val);
+    msg.textContent = creada ? "Tienda “" + val + "” registrada." : "Esa tienda ya estaba registrada.";
+    $("nuevaTiendaInput").value = "";
+  } catch(err){
+    console.error(err);
+    msg.textContent = "No se pudo registrar. Revisa tu conexión.";
+  }
+});
 
 /* ---------- Formulario ---------- */
 function fillCategorias(){
@@ -601,6 +862,7 @@ $("saveBtn").addEventListener("click", async () => {
   const monto = parseFloat($("montoInput").value);
   if(!monto || monto <= 0){ $("montoInput").focus(); return; }
   if(!storeId){ $("storeModalBg").classList.remove("hidden"); return; }
+  if(storeBloqueada){ alert("El acceso a esta tienda está restringido."); return; }
   const fechaNueva = $("fechaInput").value || keyDe(new Date());
   // Hoy los montos del mismo tipo se suman en un solo movimiento; en otras fechas, solo uno de cada tipo (se bloquea)
   const esHoy = fechaNueva === keyDe(new Date());
