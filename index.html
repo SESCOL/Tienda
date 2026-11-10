@@ -757,7 +757,7 @@ function escucharTiendas(){
     renderTiendas();
   }, err => {
     console.error(err);
-    $("tiendasLista").innerHTML = '<div class="empty">No se pudo cargar la lista de tiendas.</div>';
+    $("tiendasLista").innerHTML = '<div class="empty">No se pudo cargar la lista de tiendas' + (err && err.code ? " (" + err.code + ")" : "") + '.' + (err && err.code === "permission-denied" ? " Revisa las reglas de Firestore." : "") + '</div>';
   });
 }
 
@@ -815,7 +815,7 @@ $("tiendasLista").addEventListener("click", async e => {
     }
   } catch(err){
     console.error(err);
-    alert("No se pudo actualizar la tienda. Revisa tu conexión.");
+    alert("No se pudo actualizar la tienda" + (err && err.code ? " (" + err.code + ")" : "") + ".");
   }
 });
 $("nuevaTiendaBtn").addEventListener("click", async () => {
@@ -828,7 +828,7 @@ $("nuevaTiendaBtn").addEventListener("click", async () => {
     $("nuevaTiendaInput").value = "";
   } catch(err){
     console.error(err);
-    msg.textContent = "No se pudo registrar. Revisa tu conexión.";
+    msg.textContent = "No se pudo registrar" + (err && err.code ? " (" + err.code + ")" : "") + ". " + (err && err.code === "permission-denied" ? "Firebase no permite escribir en la lista de tiendas: revisa las reglas de Firestore." : "Revisa tu conexión.");
   }
 });
 
