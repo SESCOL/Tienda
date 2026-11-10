@@ -161,6 +161,20 @@
     font-size:.85rem;font-weight:600;cursor:pointer;
   }
 
+  /* ---- Punto de equilibrio ---- */
+  .pe-main{margin-bottom:10px;}
+  .pe-label{font-size:.65rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;}
+  .pe-value{font-size:1.6rem;font-weight:600;margin-top:2px;}
+  .pe-bar{height:10px;background:var(--line);border-radius:6px;overflow:hidden;}
+  .pe-fill{height:100%;width:0;background:#C98A1B;border-radius:6px;transition:width .3s;}
+  .pe-fill.ok{background:var(--green);}
+  .pe-status{font-size:.82rem;margin:8px 0 12px;line-height:1.4;}
+  .pe-row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:.85rem;}
+  .pe-row span:first-child{color:var(--ink-soft);}
+  .pe-fijos{margin-top:12px;}
+  .pe-fijos label{display:block;font-size:.7rem;color:var(--ink-soft);margin-bottom:4px;}
+  .pe-hint{font-size:.68rem;color:var(--ink-soft);margin-top:6px;line-height:1.4;}
+
   /* ---- Utilidad neta ---- */
   .util-title{font-size:.7rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin:0 0 8px 2px;}
   .util-strip{margin-bottom:24px;}
@@ -362,6 +376,26 @@
       <div class="t-value mono" id="utilAnio">$0</div>
       <div class="t-sub" id="subAnio"></div>
     </div>
+  </div>
+
+  <div class="card" id="peCard">
+    <h2 id="peTitle">Punto de equilibrio</h2>
+    <div class="pe-main">
+      <div class="pe-label">Ventas necesarias en el mes</div>
+      <div class="pe-value mono" id="peValor">—</div>
+    </div>
+    <div class="pe-bar"><div class="pe-fill" id="peFill"></div></div>
+    <div class="pe-status" id="peStatus"></div>
+    <div class="pe-row"><span>Ventas del mes</span><span class="mono" id="peVentas">$0</span></div>
+    <div class="pe-row"><span>Costos variables <small id="peVarPct"></small></span><span class="mono" id="peVariables">$0</span></div>
+    <div class="pe-row"><span>Margen de contribución</span><span class="mono" id="peMargen">—</span></div>
+    <div class="pe-row"><span>Costos fijos</span><span class="mono" id="peFijos">$0</span></div>
+    <div class="pe-fijos" id="peFijosBox">
+      <label for="peFijosInput">Costos fijos del mes (opcional)</label>
+      <input type="number" id="peFijosInput" inputmode="decimal" min="0" placeholder="Ej. renta + sueldos + servicios">
+      <div class="pe-hint">Si lo llenas, se usa en lugar de los costos fijos registrados este mes. Déjalo vacío para usar solo lo registrado.</div>
+    </div>
+    <div class="pe-hint">Costos variables: inventario / mercancía y transporte. Costos fijos: renta, servicios, sueldos y otros gastos.</div>
   </div>
 
   <div class="card">
@@ -796,6 +830,7 @@ function renderAll(){
   renderBalance();
   renderStrip();
   renderUtilidad();
+  renderEquilibrio();
   renderChart();
   renderHistory();
 }
@@ -817,6 +852,58 @@ function renderStrip(){
   };
   setTile("sumHoy", sumaPeriodo("hoy"));
 }
+
+/* ---------- Punto de equilibrio ---------- */
+const CATS_VARIABLES = ["Inventario / mercancía", "Transporte"]; // el resto de gastos cuenta como costo fijo
+function claveFijos(){ return "rentabilidad_fijos_" + storeId; }
+function renderEquilibrio(){
+  const k = mesVista || mesActualKey();
+  let ing = 0, variables = 0, fijosReg = 0;
+  movimientos.forEach(m => {
+    if(m.fecha.slice(0,7) !== k) return;
+    if(m.tipo === "ingreso") ing += m.monto;
+    else if(CATS_VARIABLES.includes(m.categoria)) variables += m.monto;
+    else fijosReg += m.monto;
+  });
+
+  // Costos fijos capturados a mano: solo aplican al mes actual
+  const box = $("peFijosBox"), inp = $("peFijosInput");
+  box.classList.toggle("hidden", !!mesVista);
+  const manual = mesVista ? NaN : parseFloat(localStorage.getItem(claveFijos()));
+  const usaManual = !isNaN(manual) && manual > 0;
+  if(!mesVista && document.activeElement !== inp) inp.value = usaManual ? manual : "";
+  const fijos = usaManual ? manual : fijosReg;
+
+  const margen = ing > 0 ? (ing - variables) / ing : null;
+  const pe = (margen !== null && margen > 0 && fijos > 0) ? fijos / margen : null;
+
+  $("peTitle").textContent = "Punto de equilibrio · " + (mesVista ? nombreMes(mesVista) : "Mes actual");
+  $("peVentas").textContent = fmt(ing);
+  $("peVariables").textContent = fmt(variables);
+  $("peVarPct").textContent = ing > 0 ? "(" + (variables / ing * 100).toFixed(1) + "% de ventas)" : "";
+  $("peMargen").textContent = margen === null ? "—" : (margen * 100).toFixed(1) + "%";
+  $("peFijos").textContent = fmt(fijos);
+  $("peValor").textContent = pe === null ? "—" : fmt(pe);
+
+  const fill = $("peFill");
+  const alcanzado = pe !== null && ing >= pe;
+  fill.style.width = (pe ? Math.min(ing / pe, 1) * 100 : 0) + "%";
+  fill.classList.toggle("ok", alcanzado);
+
+  let msg;
+  if(fijos <= 0) msg = "Aún no hay costos fijos este mes. Registra gastos como renta o sueldos, o captura los costos fijos abajo.";
+  else if(ing <= 0) msg = "Aún no hay ventas este mes para calcular el margen.";
+  else if(margen <= 0) msg = "Los costos variables igualan o superan las ventas: con este margen no se alcanza el punto de equilibrio.";
+  else if(alcanzado) msg = "✅ Ya superaste el punto de equilibrio por " + fmt(ing - pe) + ".";
+  else msg = "Faltan " + fmt(pe - ing) + " en ventas para llegar al punto de equilibrio (" + Math.round(ing / pe * 100) + "% alcanzado).";
+  $("peStatus").textContent = msg;
+}
+$("peFijosInput").addEventListener("change", () => {
+  const v = parseFloat($("peFijosInput").value);
+  if(v > 0) localStorage.setItem(claveFijos(), String(v));
+  else localStorage.removeItem(claveFijos());
+  renderEquilibrio();
+});
 
 function renderUtilidad(){
   [["semana","utilSemana","subSemana"],["mes","utilMes","subMes"],["anio","utilAnio","subAnio"]].forEach(([per, idVal, idSub]) => {
