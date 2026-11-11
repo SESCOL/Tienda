@@ -882,13 +882,10 @@ $("saveBtn").addEventListener("click", async () => {
   $("saveBtn").textContent = "Guardando...";
   try{
     const col = db.collection("tiendas").doc(storeId).collection("movimientos");
-    // Hoy: si ya hay un movimiento del mismo tipo, se suma el monto en ese mismo movimiento
-    const existente = esHoy ? movimientos.find(m => m.fecha === fechaNueva && m.tipo === tipoActual) : null;
+    // Hoy: si ya hay un movimiento del mismo tipo y la misma categoría, se suma el monto en ese mismo movimiento
+    const existente = esHoy ? movimientos.find(m => m.fecha === fechaNueva && m.tipo === tipoActual && m.categoria === data.categoria) : null;
     if(existente){
-      const extras = [];
-      if(data.categoria && data.categoria !== existente.categoria) extras.push(data.categoria);
-      if(data.nota) extras.push(data.nota);
-      const notaFinal = [existente.nota, extras.join(" - ")].filter(Boolean).join(" | ");
+      const notaFinal = [existente.nota, data.nota].filter(Boolean).join(" | ");
       await col.doc(existente.id).update({
         monto: (Number(existente.monto) || 0) + monto,
         nota: notaFinal,
